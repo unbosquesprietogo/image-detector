@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection with TensorFlow.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script> <!-- Importar TensorFlow.js -->
+    <script src="https://cdn.tailwindcss.com"></script> <!-- Tailwind CSS -->
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+
+    <div class="max-w-4xl mx-auto p-6 bg-gray-800 rounded-lg shadow-lg text-center space-y-6">
+        <h1 class="text-4xl font-bold text-teal-400">Object Detection with TensorFlow.js</h1>
+
+        <!-- Botón para cambiar de cámara -->
+        <div class="flex flex-col items-center space-y-4">
+            <button id="flipCameraButton" onclick="flipCamera()" class="bg-gradient-to-r from-blue-500 to-green-400 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553 2.276A1 1 0 0119.553 14H4.447a1 1 0 01-.894-1.447L8 10m0 4l-4.553-2.276A1 1 0 014.447 10H19.553a1 1 0 01.894 1.447L16 14" />
+                </svg>
+                <span>Flip Camera</span>
+            </button>
+
+            <!-- Input para subir imágenes con botón estilizado -->
+            <div class="relative">
+                <input type="file" id="imageUpload" accept="image/*" onchange="loadImage(event)" class="hidden"> <!-- El input está oculto -->
+                <button onclick="triggerFileInput()" class="bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    Select Photo
+                </button>
+            </div>
+
+            <!-- Cámara -->
+            <video id="camera" width="300" height="300" autoplay class="border-4 border-dashed border-teal-500 rounded-lg shadow-md"></video>
+            <button onclick="captureImage()" class="bg-gradient-to-r from-purple-400 to-pink-600 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">Capture Photo</button>
+        </div>
+
+        <!-- Mostrar imagen seleccionada o capturada -->
+        <div class="relative">
+            <canvas id="canvas" width="200" height="200" style="display:none;"></canvas> <!-- Redimensionado a 200x200 -->
+            <img id="selectedImage" src="" alt="Selected Image" class="w-80 h-80 mx-auto mt-6 border-4 border-teal-500 rounded-lg shadow-md" style="display:none;">
+            <div id="loader" class="hidden absolute inset-0 flex items-center justify-center bg-opacity-75 bg-gray-900 rounded-lg">
+                <svg class="animate-spin h-10 w-10 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4m0 12v4m8-8h-4M4 12H2m16.949-6.364l-2.828 2.829M6.343 17.657l-2.829-2.828M17.657 17.657l2.828-2.828M6.343 6.343L3.515 9.172" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Mostrar resultado -->
+        <h2 class="text-2xl font-semibold text-teal-400">Prediction:</h2>
+        <p id="prediction" class="text-lg text-gray-300"></p>
+    </div>
+
+    <script>
+        let model;
+        let cameraStream;
+        let isUsingFrontCamera = true; // Estado de la cámara: true = cámara frontal, false = trasera
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const predictionElement = document.getElementById('prediction');
+        const video = document.getElementById('camera');
+        const loader = document.getElementById('loader');
+        const selectedImage = document.getElementById('selectedImage');
+        const imageUpload = document.getElementById('imageUpload'); // Referencia al input oculto
+
+        // Mostrar animación de carga
+        function showLoader() {
+            loader.classList.remove('hidden');
+            selectedImage.classList.add('hidden');
+        }
+
+        // Ocultar animación de carga
+        function hideLoader() {
+            loader.classList.add('hidden');
+            selectedImage.classList.remove('hidden');
+        }
+
+        // Disparar el input de tipo file cuando se hace clic en el botón
+        function triggerFileInput() {
+            imageUpload.click(); // Simula un clic en el input file
+        }
+
+        // Cargar el modelo entrenado
+        async function loadModel() {
+            try {
+                console.log("Starting to load model...");
+                model = await tf.loadGraphModel('./model/model.json');  // Usar tf.loadGraphModel para GraphModel
+                console.log('Model loaded successfully:', model);
+            } catch (error) {
+                console.error('Error loading the model:', error);
+            }
+        }
+
+        // Cargar la imagen desde un archivo
+        function loadImage(event) {
+            const image = document.getElementById('selectedImage');
+            image.src = URL.createObjectURL(event.target.files[0]);
+            image.style.display = "block"; // Asegurarse de que la imagen seleccionada sea visible
+            showLoader();
+            image.onload = () => {
+                hideLoader();
+                classifyImage(image);
+            };
+        }
+
+        // Capturar imagen de la cámara y mostrarla como si fuera seleccionada
+        async function captureImage() {
+            showLoader();
+            // Dibujar la imagen en el canvas de 200x200
+            ctx.drawImage(video, 0, 0, 200, 200);  // Redimensiona a 200x200
+            const imageDataUrl = canvas.toDataURL('image/jpeg');
+            
+            // Mostrar la imagen capturada
+            const capturedImage = document.getElementById('selectedImage');
+            capturedImage.src = imageDataUrl;
+            capturedImage.style.display = "block"; // Asegurarse de que la imagen capturada sea visible
+
+            const imageElement = new Image();
+            imageElement.src = imageDataUrl;
+            imageElement.onload = () => {
+                hideLoader();
+                classifyImage(imageElement);
+            };
+        }
+
+        // Clasificar la imagen con el modelo
+        async function classifyImage(image) {
+            // Verifica si el modelo está cargado
+            if (!model) {
+                predictionElement.textContent = 'Model not loaded. Please wait...';
+                return;
+            }
+
+            showLoader();
+
+            // Convertir la imagen a un tensor y redimensionar a 200x200
+            let img = tf.browser.fromPixels(image).resizeNearestNeighbor([200, 200]).toFloat();
+
+            // Convertir la imagen a escala de grises (promediar los 3 canales)
+            img = img.mean(2).expandDims(-1);  // Convertir a [200, 200, 1]
+            
+            // Añadir la dimensión del lote (batch) y normalizar
+            img = img.expandDims(0).div(255);
+
+            // Predecir la clase con el modelo
+            const prediction = await model.predict(img).data();
+            const predictedClass = prediction.indexOf(Math.max(...prediction)); // Encuentra el índice de la predicción más alta
+
+            // Etiquetas correspondientes a las clases del modelo
+            const labels = ['Bicycle', 'Cabinet', 'Chair', 'Coffee Maker', 'Fan'];
+
+            // Mostrar el resultado en la página
+            predictionElement.textContent = `Detected: ${labels[predictedClass]}`;
+            hideLoader();
+        }
+
+        // Iniciar la cámara
+        async function startCamera() {
+            const facingMode = isUsingFrontCamera ? "user" : "environment"; // Determina la cámara a usar
+            try {
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop()); // Detener la cámara anterior
+                }
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facingMode }
+                });
+                video.srcObject = cameraStream;
+            } catch (error) {
+                console.error('Error accessing the camera:', error);
+            }
+        }
+
+        // Función para alternar entre cámaras
+        function flipCamera() {
+            isUsingFrontCamera = !isUsingFrontCamera; // Cambiar estado de la cámara
+            startCamera(); // Reiniciar la cámara con la nueva orientación
+        }
+
+        // Iniciar el proceso
+        loadModel();
+        startCamera();
+    </script>
+</body>
+</html>
