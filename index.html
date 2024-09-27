@@ -135,35 +135,56 @@
         }
 
         // Clasificar la imagen con el modelo
+
         async function classifyImage(image) {
             // Verifica si el modelo está cargado
             if (!model) {
                 predictionElement.textContent = 'Model not loaded. Please wait...';
                 return;
             }
-
+        
             showLoader();
-
+        
             // Convertir la imagen a un tensor y redimensionar a 300x300
             let img = tf.browser.fromPixels(image).resizeNearestNeighbor([300, 300]).toFloat();
-
+        
             // Convertir la imagen a escala de grises (promediar los 3 canales)
             img = img.mean(2).expandDims(-1);  // Convertir a [300, 300, 1]
-            
+
             // Añadir la dimensión del lote (batch) y normalizar
             img = img.expandDims(0).div(255);
-
+        
             // Predecir la clase con el modelo
             const prediction = await model.predict(img).data();
             const predictedClass = prediction.indexOf(Math.max(...prediction)); // Encuentra el índice de la predicción más alta
-
+        
             // Etiquetas correspondientes a las clases del modelo
             const labels = ['Bicycle', 'Cabinet', 'Chair', 'Coffee Maker', 'Fan'];
-
-            // Mostrar el resultado en la página
-            predictionElement.textContent = `Detected: ${labels[predictedClass]}`;
+        
+            // Atributos adicionales para cada categoría
+            const attributes = {
+                'Bicycle': { id: 1, stock: 10, price: 200, description: 'A lightweight mountain bike.' },
+                'Cabinet': { id: 2, stock: 5, price: 150, description: 'Wooden cabinet with drawers.' },
+                'Chair': { id: 3, stock: 20, price: 75, description: 'Comfortable chair.' },
+                'Coffee Maker': { id: 4, stock: 8, price: 50, description: 'Automatic drip coffee maker.' },
+                'Fan': { id: 5, stock: 15, price: 30, description: 'Electric fan.' }
+            };
+        
+            // Obtener la etiqueta correspondiente a la clase predicha
+            const detectedLabel = labels[predictedClass];
+            const detectedAttributes = attributes[detectedLabel];
+        
+            // Mostrar el resultado en la página con los atributos adicionales
+            predictionElement.textContent = `
+                Detected: ${detectedLabel}
+                ID: ${detectedAttributes.id}
+                Stock: ${detectedAttributes.stock}
+                Price: $${detectedAttributes.price}
+                Description: ${detectedAttributes.description}
+            `;
             hideLoader();
         }
+
 
         // Iniciar la cámara
         async function startCamera() {
