@@ -36,7 +36,7 @@
 
         <!-- Mostrar imagen seleccionada o capturada -->
         <div class="relative">
-            <canvas id="canvas" width="200" height="200" style="display:none;"></canvas> <!-- Redimensionado a 200x200 -->
+            <canvas id="canvas" width="300" height="300" style="display:none;"></canvas> <!-- Redimensionado a 300x300 -->
             <img id="selectedImage" src="" alt="Selected Image" class="w-80 h-80 mx-auto mt-6 border-4 border-teal-500 rounded-lg shadow-md" style="display:none;">
             <div id="loader" class="hidden absolute inset-0 flex items-center justify-center bg-opacity-75 bg-gray-900 rounded-lg">
                 <svg class="animate-spin h-10 w-10 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,8 +105,20 @@
         // Capturar imagen de la cámara y mostrarla como si fuera seleccionada
         async function captureImage() {
             showLoader();
-            // Dibujar la imagen en el canvas de 200x200
-            ctx.drawImage(video, 0, 0, 200, 200);  // Redimensiona a 200x200
+
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+
+            // Calcular el tamaño cuadrado basado en el lado más pequeño (para centrado)
+            const sideLength = Math.min(videoWidth, videoHeight);
+
+            // Calcular las coordenadas para recortar el área cuadrada desde el centro del video
+            const startX = (videoWidth - sideLength) / 2;
+            const startY = (videoHeight - sideLength) / 2;
+
+            // Dibujar solo el área cuadrada del video en el canvas de 300x300
+            ctx.drawImage(video, startX, startY, sideLength, sideLength, 0, 0, 300, 300);
+
             const imageDataUrl = canvas.toDataURL('image/jpeg');
             
             // Mostrar la imagen capturada
@@ -132,11 +144,11 @@
 
             showLoader();
 
-            // Convertir la imagen a un tensor y redimensionar a 200x200
-            let img = tf.browser.fromPixels(image).resizeNearestNeighbor([200, 200]).toFloat();
+            // Convertir la imagen a un tensor y redimensionar a 300x300
+            let img = tf.browser.fromPixels(image).resizeNearestNeighbor([300, 300]).toFloat();
 
             // Convertir la imagen a escala de grises (promediar los 3 canales)
-            img = img.mean(2).expandDims(-1);  // Convertir a [200, 200, 1]
+            img = img.mean(2).expandDims(-1);  // Convertir a [300, 300, 1]
             
             // Añadir la dimensión del lote (batch) y normalizar
             img = img.expandDims(0).div(255);
